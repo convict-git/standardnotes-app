@@ -98,7 +98,7 @@ sequenceDiagram
     SE->>SE: ignoreNextChange? skip
     SE->>NC: saveAndAwaitLocalPropagation({text: serializedState, previews})
     NC->>PM: (debounced) mutate → emit dirty payload
-    Note over SE: on remote change (retrieved source):<br/>ignoreNextChange=true; changeEditorFunction(updatedNote.text)
+    Note over SE: on a retrieved-source remote change,<br/>set ignoreNextChange then changeEditorFunction(updatedNote.text)
 ```
 
 **Why in-process (not an iframe) for Super:** it needs deep integration — embedding other items/files as nodes, linking, command palette, keyboard shortcuts — which the arms-length iframe protocol cannot express efficiently. The tradeoff is that Super is first-party code with full main-thread access (no sandbox), justified because it *is* first-party. (Inferred rationale; the in-process structure is Observed.)

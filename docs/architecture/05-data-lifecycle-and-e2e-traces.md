@@ -55,7 +55,7 @@ sequenceDiagram
       IM-->>UI: item lists fill progressively
       SY->>SY: sleep(sleepBetweenBatches) to let UI paint
     end
-    SY->>SY: beginAutoSyncTimer(); sync(DownloadFirst)
+    SY->>SY: beginAutoSyncTimer, then sync(DownloadFirst)
 ```
 
 **Data-flow facts (Observed):**
@@ -112,8 +112,8 @@ sequenceDiagram
     participant PM as PayloadManager
     participant SY as SyncService
     ED->>NC: saveAndAwaitLocalPropagation({text, title})
-    NC->>NC: clear prior syncTimeout; set savingLocallyPromise
-    NC->>NC: debounce (700ms desktop/mobile; 100ms if offline/bypass)
+    NC->>NC: clear prior syncTimeout, set savingLocallyPromise
+    NC->>NC: debounce 700ms desktop/mobile, 100ms if offline/bypass
     NC->>NC: setTimeout(debounce) →
     NC->>M: changeItem(note, mut => {title,text,preview_plain(160ch)})
     M->>PM: emit dirtied payload → UI updates
@@ -159,8 +159,8 @@ sequenceDiagram
     SY->>PM: collect dirty payloads (dirtyIndex > lastSync)
     SY->>ST: persist dirty payloads locally (encrypted) [offline-safe]
     SY->>EN: encrypt dirty payloads (004)
-    SY==>API: upload encrypted items
-    API==>SV: POST /items/sync
+    SY->>API: upload encrypted items
+    API->>SV: POST /items/sync
     SV-->>SY: saved_items + conflicts + cursor_token
     SY->>EN: decrypt retrieved/conflicted
     SY->>PM: emit reconciled payloads (clear dirty / create conflict duplicates)
@@ -187,7 +187,7 @@ sequenceDiagram
     participant NC as NoteViewController
     participant ED as Editor
     WS-->>SY: ItemsChangedOnServer (bus)
-    SY==>SV: sync (download)
+    SY->>SV: sync (download)
     SV-->>SY: retrieved encrypted items
     SY->>EN: decrypt
     SY->>PM: emit (source: RemoteRetrieved)
@@ -213,7 +213,7 @@ stateDiagram-v2
     PersistedLocal --> DirtyLocal: further edits
     PersistedLocal --> Reconnect: network returns
     Reconnect --> Uploading: sync() collects still-dirty payloads
-    Uploading --> Converged: server saves; dirty cleared
+    Uploading --> Converged: server saves, dirty cleared
     Uploading --> Conflicted: server has newer version → duplicate
     Converged --> [*]
 ```
@@ -269,7 +269,7 @@ sequenceDiagram
     participant DEV as DeviceInterface
     UI->>U: signOut()
     U-->>APP: AccountEvent.SignedOut
-    APP->>APP: notifyEvent(SignedOut); prepareForDeinit (await critical writes)
+    APP->>APP: notifyEvent(SignedOut), prepareForDeinit awaits critical writes
     APP->>APP: deinit(SignOut) — drop keys, stop observers, dependencies.deinit()
     APP->>GRP: onApplicationDeinit(SignOut)
     GRP->>DEV: remove descriptor + clear this workspace's data

@@ -23,7 +23,7 @@ Searches across `packages/web/src`, `packages/snjs/lib`, and all webpack configs
 ```mermaid
 flowchart LR
     B["Browser"]:::ui -->|GET| HTML["index.html"]:::network
-    HTML -->|GET app.js/app.css<br/>(HTTP cache only)| ASSETS["hashed bundles"]:::network
+    HTML -->|"GET app.js/app.css (HTTP cache only)"| ASSETS["fixed-name bundles"]:::network
     B -. NO service worker .-> X["(no interception / no offline shell)"]:::worker
     APP["Running SPA"]:::ui ==> IDB["IndexedDB / localStorage<br/>(offline data)"]:::storage
     classDef ui fill:#dbeafe,stroke:#1e40af,color:#0b1324;

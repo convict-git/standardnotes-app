@@ -227,7 +227,7 @@ sequenceDiagram
     end
     APP-->>AV: Launched event → setLaunched(true)
     APP->>SVC: loadDatabasePayloads() [background] → beginAutoSyncTimer → sync(DownloadFirst)
-    SVC-->>AV: item deltas populate UI; FullSyncCompleted_13
+    SVC-->>AV: item deltas populate UI, then FullSyncCompleted_13
 ```
 
 **How to read it:** steps above the `Launched` event are blocking prerequisites; steps after it (DB hydration + first sync) run in the background while the UI is already interactive. React gates the *visible* app on `!needsUnlock && launched` (`ApplicationView.tsx:187-189`, Observed), so the user sees either the unlock modal or the populated app.

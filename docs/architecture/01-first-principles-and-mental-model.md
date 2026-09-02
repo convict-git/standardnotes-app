@@ -172,15 +172,15 @@ sequenceDiagram
     PM->>SY: item is dirty
     SY->>EN: encrypt dirty payloads
     EN-->>SY: encrypted payloads (004 ciphertext)
-    SY==>ST: persist encrypted payloads locally
-    SY==>SV: upload encrypted payloads
+    SY->>ST: persist encrypted payloads locally
+    SY->>SV: upload encrypted payloads
     SV-->>SY: saved + any conflicts
     SY->>EN: decrypt retrieved/conflicted
     SY->>PM: emit reconciled payloads
     PM->>IM: delta → UI updates
 ```
 
-**How to read it:** control flow is top-to-bottom; `==>` steps cross a durability/network boundary. The key structural fact: **the UI is updated from the model twice** — first optimistically when the local payload changes (steps 3–4), and again after the server round-trip resolves conflicts (steps 11–12). The user sees their edit instantly; convergence happens behind it. (Observed.)
+**How to read it:** control flow is top-to-bottom; the persist/upload steps (to `ST`/`SV`) cross a durability/network boundary. The key structural fact: **the UI is updated from the model twice** — first optimistically when the local payload changes (steps 3–4), and again after the server round-trip resolves conflicts (steps 11–12). The user sees their edit instantly; convergence happens behind it. (Observed.)
 
 Two properties fall out of this pipeline:
 

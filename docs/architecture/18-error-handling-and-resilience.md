@@ -93,8 +93,8 @@ sequenceDiagram
     participant APP as SNApplication
     API-->>SM: 401 (revoked) x many
     SM-->>APP: SessionEvent.Revoked
-    APP->>APP: if revokingSession return; else set flag
-    APP->>APP: user.signOut(true) + alert "session revoked"
+    APP->>APP: if revokingSession return, else set flag
+    APP->>APP: user.signOut(true) + alert session revoked
 ```
 
 Token refresh is attempted first (`ApiServiceEvent.SessionRefreshed` → `SessionManager`, `DependencyEvents.ts:31`); only a hard revocation forces sign-out. (Observed.)

@@ -128,15 +128,15 @@ sequenceDiagram
     SS->>OP: new AccountSyncOperation(pushPayloads, receiver, {syncToken, paginationToken})
     loop until done (no pending uploads AND no paginationToken)
       OP->>OP: popPayloads(150)
-      OP==>API: sync(payloads, syncToken, paginationToken, downLimit=150)
-      API==>SV: POST /items/sync
+      OP->>API: sync(payloads, syncToken, paginationToken, downLimit=150)
+      API->>SV: POST /items/sync
       SV-->>OP: {retrieved, saved, conflicts, sync_token, cursor_token}
       OP->>SS: SyncSignal.Response
       SS->>RR: resolve(response, baseCollection, savedOrSaving, historyMap)
       RR-->>SS: DeltaEmit[] (retrieved/saved/data-conflict/uuid-conflict/rejected)
       SS->>PM: emit deltas → collection updates → UI
     end
-    SS->>SS: mark saved items clean; re-sync if still dirty
+    SS->>SS: mark saved items clean, re-sync if still dirty
 ```
 
 ### 5a. Request/response protocol
@@ -244,7 +244,7 @@ sequenceDiagram
     SV-->>A: ConflictingData: server has X=B1 @ T1
     A->>A: ConflictDelta(base=A1, apply=B1)
     Note over A: A recently edited X (within 20s?) → KeepBaseDuplicateApply<br/>else DuplicateBaseKeepApply
-    A->>A: emit: X keeps one version; other becomes conflict_of duplicate (dirty)
+    A->>A: emit — X keeps one version, other becomes conflict_of duplicate (dirty)
     A->>SV: next sync uploads the duplicate + the re-marked original
     SV-->>B: retrieved: the new duplicate + updated X
     B->>B: both versions now present on B too
@@ -284,7 +284,7 @@ stateDiagram-v2
     Uploading --> Resolving: response received
     Resolving --> Uploading: more pages
     Resolving --> Done: no pending + no cursor_token
-    Done --> Idle: mark saved clean; re-sync if still dirty
+    Done --> Idle: mark saved clean, re-sync if still dirty
     Done --> Preparing: items dirtied during sync (frozenDirtyIndex)
 ```
 
