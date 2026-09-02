@@ -86,15 +86,15 @@ sequenceDiagram
     participant CDN as Static host
     participant Tab as Open tab (old JS)
     participant New as Reloaded tab
-    Dev->>CDN: publish new hashed bundles (app.<hash>.js)
+    Dev->>CDN: publish new app.js / app.css (fixed names)
     Note over Tab: keeps running OLD code until reload
     Tab->>New: user reloads / reopens
-    New->>CDN: GET index.html → references new hashed bundles
-    New->>New: runs new app version
+    New->>CDN: GET index.html → GET app.js (cache revalidation)
+    New->>New: runs new app version (if cache served fresh bytes)
 ```
 
-- **Cache-busting:** production bundles use content-hashed filenames (webpack, [Document 14](./14-build-system-and-delivery.md)), and `index.html` references the current hashes; a reload fetches the new `index.html` and thus the new bundles. (Observed — the `index.html` template + webpack output.)
-- **Stale clients:** a long-open tab runs the **old** JS indefinitely until reloaded. There is no SW `skipWaiting`/`clientsClaim` to force-activate a new version, and no in-app “new version available, reload?” prompt tied to a SW. (Observed absence.)
+- **Cache-busting reality:** the main bundle has a **fixed name** — the webpack output is literally `app.js`/`app.css`, not `app.<hash>.js` (`web.webpack.config.js:33-34`; `optimization: {}` for the web target — **no `splitChunks`/content-hash** for the main bundle; only dynamically-`import()`ed chunks get hashed names). So cache-busting depends entirely on **HTTP cache headers**: the host must serve `app.js`/`index.html` with revalidation (short/`must-revalidate`) for a reload to fetch new code. There is no filename-hash guarantee. (Observed — the webpack output config; the header policy is host-side and out of this repo — Unknown here.)
+- **Stale clients:** a long-open tab runs the **old** JS indefinitely until reloaded, and even a reload only updates if the cache revalidates `app.js`. There is no SW `skipWaiting`/`clientsClaim` to force-activate a new version, and no in-app “new version available, reload?” prompt tied to a SW. (Observed absence.)
 - **Version awareness:** the app tracks the snjs/app version for **storage migrations** ([Document 08 §7](./08-persistence-architecture.md)) and desktop uses `@standardnotes/releases` + `electron-updater` for native updates ([Document 13](./13-multi-platform-architecture.md)) — but the *web* code-update path is “reload the page.” (Observed.)
 
 ---
@@ -142,7 +142,7 @@ sequenceDiagram
 
 - `packages/web/src/index.html` — direct asset loading, no SW registration.
 - `packages/web/src/manifest.webmanifest` — legacy Chrome-app manifest.
-- `packages/web/web.webpack*.js` — no `GenerateSW`/`InjectManifest`; content-hashed output ([Document 14](./14-build-system-and-delivery.md)).
+- `packages/web/web.webpack*.js` — no `GenerateSW`/`InjectManifest`; fixed-name `app.js`/`app.css` output (no content hash) ([Document 14](./14-build-system-and-delivery.md)).
 
 ## Next document
 
