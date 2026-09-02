@@ -74,7 +74,7 @@ Only ciphertext and `serverPassword` cross to the server ([Document 07](./07-cry
 
 ### 3b. Editor boundary (the main untrusted-code seam)
 
-Third-party editors run in **sandboxed iframes** and can only touch items granted via `RunWithPermissionsUseCase`, communicated as decrypted content over `postMessage` ([Document 09 §5](./09-editor-and-product-architecture.md)). They cannot read the app heap, keys, or other items. The Super editor and plain editor, by contrast, are **first-party in-process** code with full access — justified because they are first-party ([Document 09 §4](./09-editor-and-product-architecture.md)). (Observed.)
+Third-party editors run in **sandboxed iframes** (`allow-scripts`, **no** `allow-same-origin` on web) and can only touch items granted via `RunWithPermissionsUseCase`, communicated as decrypted content over `postMessage` ([Document 09 §5](./09-editor-and-product-architecture.md)). They cannot read the app heap, keys, or other items. Note that the host posts with target origin `'*'` (because sandboxed iframes have a `null` origin that cannot be targeted explicitly), so message *routing* relies on a per-viewer `sessionKey` plus the sandbox — **not** on origin checks; a reviewer should confirm inbound messages are validated by `sessionKey` and never trusted by origin. The Super editor and plain editor, by contrast, are **first-party in-process** code with full access — justified because they are first-party ([Document 09 §4](./09-editor-and-product-architecture.md)). (Observed — `ComponentViewer.ts:475-479`, `ComponentManager.ts:361-366`.)
 
 ### 3c. Worker boundary
 
@@ -92,7 +92,7 @@ The PDF worker receives only a structured-clone copy of the document to render; 
 | Platform | Keychain sink backed by | Strength |
 | -------- | ----------------------- | -------- |
 | **Web** | **`localStorage`** (`WebDevice.ts:12-26`) | weakest — no OS enclave; the wrapped root key sits in `localStorage`, readable by any script with access to that origin/storage |
-| **Desktop** | OS keychain via `safeStorage` | OS-backed |
+| **Desktop** | OS keychain via `keytar` (localStorage fallback on Linux/Snap) | OS-backed |
 | **Mobile** | OS keychain + biometrics | OS-backed, biometric-gated |
 
 **The web keychain is `localStorage`.** Mitigations: (a) a passcode wraps the root key so the stored value is a *wrapped* key, not the raw key ([Document 07 §7](./07-cryptographic-architecture.md)); (b) with no passcode, the root key wrapper is effectively at rest in `localStorage`. This is an inherent browser limitation, not a bug, but it is the single most important platform security asymmetry to keep in mind. (Observed.)

@@ -49,7 +49,7 @@ flowchart TB
 | ------- | --------- | --------- |
 | App launch | `sync({mode: DownloadFirst})` after DB hydration | `Application.ts:462-475` |
 | After editing | `NoteSyncController` calls `sync()` post-mutation | `NoteSyncController.ts:241` |
-| Auto timer | `setInterval(autoSync, DEFAULT_AUTO_SYNC_INTERVAL)` | `SyncService.ts:368-369` |
+| Auto timer | `setInterval(autoSync, DEFAULT_AUTO_SYNC_INTERVAL)` — **30 s** | `SyncService.ts:368-369` |
 | Server push | `WebSocketsServiceEvent.ItemsChangedOnServer` → bus → SyncService | `DependencyEvents.ts:43` |
 | Window focus/blur | `WebAppEvent.WindowDidFocus/Blur` → `sync()` | `ApplicationView.tsx:173-180` |
 | Integrity mismatch | `IntegrityEvent.IntegrityCheckCompleted` → bus → SyncService | `DependencyEvents.ts:42` |
@@ -256,7 +256,7 @@ sequenceDiagram
 
 ## 8. Offline, DownloadFirst, and integrity
 
-- **Offline:** with no network, `sync()` still persists dirty payloads locally (the persist step precedes upload — `SyncService.prepareForSync`, `SyncService.ts:630-633`). Dirtiness is a DB-persisted field, so edits survive reload and upload on reconnect. Offline mode with no account uses the `Offline` sync path (`packages/snjs/lib/Services/Sync/Offline/`, Observed dir).
+- **Offline — two distinct meanings:** (1) *No account / no session* (`SessionManager.offline()` returns true when there is no API session): `sync()` runs the dedicated **`OfflineSyncOperation`**, which synthesizes "saved" timestamps locally and marks items clean without any network (`packages/snjs/lib/Services/Sync/Offline/Operation.ts`, Observed). (2) *Signed in but network-unreachable*: the normal `AccountSyncOperation` runs, the HTTP call fails, and dirty payloads — already persisted locally *before* upload (`prepareForSync`, `SyncService.ts:630-633`) — remain dirty and upload on reconnect. Either way, dirtiness is a DB-persisted field, so edits survive reload. (Observed.)
 - **DownloadFirst:** launch syncs with `SyncMode.DownloadFirst` so the client pulls the server’s items keys and items *before* pushing local ones — critical when a fresh device must obtain items keys to decrypt anything (`Application.ts:471-475`; the persist-error is suppressed during download-first because keys may still be arriving — `SyncService.ts:631-633`, Observed).
 - **Integrity / out-of-sync recovery:** `SyncService` periodically emits `SyncEvent.SyncRequestsIntegrityCheck`; `IntegrityService` computes a hash of local state and compares with the server, emitting `IntegrityEvent.IntegrityCheckCompleted` with any mismatched items back to `SyncService`, which re-syncs them (`DependencyEvents.ts:21,42`, Observed). This detects and self-heals silent divergence (e.g. a dropped update). Exact hashing is in `packages/services/src/Domain/Integrity` (Inferred: content-hash comparison; the wiring is Observed).
 
@@ -265,8 +265,9 @@ sequenceDiagram
 ## 9. Retries and backoff
 
 - **Rate limiting:** `SyncFrequencyGuard` caps sync calls per minute (200), returning `SyncTooManyRequests` upward (surfaced as a toast — `ApplicationView.tsx:148-153`). (Observed.)
-- **Per-item backoff:** `SyncBackoffService` (injected into `SyncService`, `Dependencies.ts:1383`) is designed to defer repeatedly-failing items so one poison item doesn’t block the whole batch. (Observed wiring; the backoff curve is in `packages/services` — Inferred exponential.)
-- **Download-first retry:** `downloadFirstSync(waitTimeOnFailureMs)` retries up to a max on failure with a wait (`SyncService.ts:565-583`, Observed).
+- **Per-item backoff — wired but effectively INACTIVE:** `SyncBackoffService` is injected and its `isItemInBackoff` filter *is* consulted in `itemsNeedingSync()`, but **`backoffItem()` is never called from production code** (only tests). So no item is ever actually placed in backoff at this commit — the per-item backoff is scaffolding, not live behavior. (Observed — no non-spec caller of `backoffItem`; a tech-debt item, [Document 23](./23-legacy-architecture-and-technical-debt.md).)
+- **Download-first retry:** `downloadFirstSync(waitTimeOnFailureMs)` retries up to 5 times on failure with a wait (`SyncService.ts:565-583`, Observed).
+- **Dead latency hook:** `SyncOpStatus.startTimingMonitor()` (would emit `SyncTakingTooLong` after 5s) is **never invoked** — dead code. (Observed.)
 
 ---
 

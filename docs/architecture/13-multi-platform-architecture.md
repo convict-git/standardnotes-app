@@ -56,7 +56,7 @@ Every platform implements the same contract (three storage sinks + capability ho
 | ------------ | ------- | --- | ------- | ------ |
 | `get/setRawStorageValue` | small KV | `localStorage` | `localStorage` (renderer) | native store (bridged) |
 | `get/save/removeDatabaseEntries`, `getDatabaseLoadChunks` | payload DB | IndexedDB | IndexedDB (renderer) | native DB (bridged) |
-| `get/set/clearNamespacedKeychainValue` | secrets | `localStorage` | OS keychain (`safeStorage`) | OS keychain / biometrics |
+| `get/set/clearNamespacedKeychainValue` | secrets | `localStorage` | OS keychain (`keytar`) | OS keychain / biometrics |
 | capability hooks (backups, spellcheck, updates, share, background) | native features | none | Electron IPC | RN bridge |
 
 `WebOrDesktopDevice` is the shared base (localStorage raw KV + IndexedDB payloads); `WebDevice` and `DesktopDevice` extend it, and `MobileDevice` implements the interface over the RN bridge. (Observed — `WebOrDesktopDevice.ts`, `WebDevice.ts`, `MobileDevice.ts:69`.)
@@ -78,7 +78,7 @@ flowchart LR
     subgraph main["Main process (Node)"]
       APPI["index.ts → initializeApplication({app, ipcMain})"]:::platform
       WIN["Window.ts → BrowserWindow"]:::platform
-      KC["Keychain (safeStorage)"]:::platform
+      KC["Keychain (keytar)"]:::platform
       UM["UpdateManager (electron-updater)"]:::platform
       ES["ExtensionsServer (components http)"]:::platform
       SP["SpellcheckerManager"]:::platform
@@ -104,15 +104,16 @@ flowchart LR
 const window = new BrowserWindow({ webPreferences: {
   nodeIntegration: isTesting(),  // false in production
   contextIsolation: true,        // renderer isolated from Node
+  sandbox: true,                 // renderer sandboxed
   preload: Paths.preloadJs,      // controlled bridge only
 }})
 ```
 
-- `contextIsolation: true` + `nodeIntegration: false` means the web app cannot touch Node directly; it talks to the main process only through the **`RemoteBridge`** exposed by `preload.js` (`Main/Remote/RemoteBridge.ts`, Observed). This bridge becomes `window.webClient`/`DesktopManager` on the renderer ([Document 03](./03-bootstrap-and-dependency-construction.md); `WebApplicationGroup.ts:45-47`).
-- Native capabilities, each a main-process module reached over IPC (Observed — `Main/` files):
-  - **Keychain** (`Keychain/Keychain.ts`) — OS secure storage; on Linux a dedicated BrowserWindow grants password access.
+- `contextIsolation: true` + `sandbox: true` + `nodeIntegration: false` means the web app cannot touch Node directly; it talks to the main process through two channels: **(a)** the **`RemoteBridge`** — a bound method surface exposed via **`@electron/remote`** (`RemoteBridge.exposableValue`) and `contextBridge` as `window.electronRemoteBridge`, for renderer→main *capability calls*; and **(b)** one-way `webContents.send` → `ipcRenderer.on` *events* (`MessageToWebApp.*`, e.g. `WindowFocused`, `UpdateAvailable`) wired to `window.webClient`/`DesktopManager`. A tiny classic `ipcMain` channel exists only for Linux keychain-consent. (Observed — `Preload.ts`, `RemoteBridge.ts`, `IpcMessages.ts`; `WebApplicationGroup.ts:45-47`.)
+- Native capabilities, each a main-process module (Observed — `Main/` files):
+  - **Keychain** (`Keychain/Keychain.ts`) — OS secure storage via **`keytar`** (`getPassword`/`setPassword`); on Linux/Snap it can fall back to `localStorage` (with a consent BrowserWindow). There is **no** Electron `safeStorage` usage.
   - **Auto-update** (`UpdateManager.ts`) — `electron-updater`, config in `dev-app-update.yml`, packaged by `electron-builder`.
-  - **Components server** (`ExtensionsServer.ts`) — serves editor/theme components over local `http` so iframe editors load from a local origin ([Document 09 §5](./09-editor-and-product-architecture.md)).
+  - **Components server** (`ExtensionsServer.ts`) — serves editor/theme components over local `http` on `127.0.0.1:45653` (`sn://` URLs are rewritten to this host) so iframe editors load from a local origin ([Document 09 §5](./09-editor-and-product-architecture.md)).
   - **Spellchecker** (`SpellcheckerManager.ts`) — with dictionary download from `dictionaries.standardnotes.org`.
   - **Menus** (`Menus/Menus.ts`), **Store** (settings), **PackageManager** (download/install components), **text/file backups**.
 - **Storage:** the renderer still uses IndexedDB/localStorage (it *is* Chromium), so `DesktopDevice` mostly reuses `WebOrDesktopDevice`, overriding the **keychain** to use the OS keystore and adding file backups. The Snap package migrates `userData` to the shared `common` dir so updates don’t orphan IndexedDB (`index.ts:52-133`, Observed).
@@ -132,7 +133,8 @@ const device = new MobileDevice(stateService, androidBackHandlerService, colorSc
 
 - **The web bundle is embedded** (`Web.bundle/src/index.html`) and loaded from local assets — so on mobile the app’s *code* is available offline (unlike web, [Document 12](./12-pwa-and-service-worker.md)).
 - **Bridge (native ↔ web):** native → web via `webViewRef.current.postMessage(...)` and `injectJavaScript(...)`; web → native via `window.ReactNativeWebView.postMessage(...)` handled by the WebView `onMessage`. The web side receives native events through `MobileWebReceiver` ([Document 15 §7](./15-events-and-internal-communication.md); `MobileWebAppContainer.tsx:69-70`). (Observed.)
-- **`MobileDevice`** (`src/Lib/MobileDevice.ts`) implements `MobileDeviceInterface` (a `DeviceInterface`) using native modules — native keychain/biometrics, native storage for raw KV and the payload DB, share handling, notifications (`notifee`), app-state/lifecycle, color scheme, Android back handling. The web app uses it as `window.reactNativeDevice` (`App.tsx:120`). The precise per-method proxying over the WebView channel is the RN bridge (Observed that the device is injected and events are postMessage-bridged; the exact per-call RPC wiring is Inferred).
+- **`MobileDevice`** (`src/Lib/MobileDevice.ts`) implements `MobileDeviceInterface` (a `DeviceInterface`) using native modules — native keychain (`react-native-keychain`), biometrics (`react-native-fingerprint-scanner`), storage (**AsyncStorage**, keyed `{identifier}-Item-{uuid}`, not IndexedDB) for raw KV and the payload DB, share handling (`react-native-share`/`react-native-fs`), notifications (`notifee`), app-state/lifecycle, color scheme, Android back handling.
+- **The RPC proxy is Observed, not Inferred:** before content load, the RN host injects a `WebProcessDeviceInterface` onto `window.reactNativeDevice` whose every method stub calls `ReactNativeWebView.postMessage({functionName, args, messageId})`; the native side invokes the real `MobileDevice[functionName](...args)` and posts `{messageId, returnValue}` back, resolving the pending promise. `environment` is hard-coded to `3` (Mobile) in the injected proxy. Crucially, **crypto stays in the WebView** (WebCrypto/libsodium WASM); there is no `react-native-sodium`. (Observed — `MobileWebAppContainer.tsx:252-362`.)
 - **Mobile-specific app options (Observed — `WebApplication.ts:124-131`):**
   - `apiVersion: v0` on iOS/Android (vs `v1` on web) — because “iOS `file://` based origin does not work with production cookies.”
   - `loadBatchSize: 250`, `sleepBetweenBatches: 250` (vs defaults) — tuned hydration for mobile.
@@ -167,7 +169,7 @@ sequenceDiagram
 | UI | web React app (tab) | web app in BrowserWindow | web app in WebView |
 | Raw KV storage | `localStorage` | `localStorage` | native store (bridged) |
 | Payload DB | IndexedDB | IndexedDB | native DB (bridged) |
-| Secure key storage | `localStorage` (none) | OS keychain (`safeStorage`) | OS keychain + biometrics |
+| Secure key storage | `localStorage` (none) | OS keychain (`keytar`), localStorage fallback | OS keychain + biometrics |
 | Filesystem | File System Access API | full (Node fs) | native share/save |
 | Editor components | served from build | local components server | native component URLs |
 | Auto-update | reload (hashed bundles) | `electron-updater` | App/Play Store |
@@ -204,8 +206,8 @@ sequenceDiagram
 
 ## Open questions
 
-- Exact `MobileDevice` per-method RPC proxying over the WebView channel — Observed at the bridge level; per-call wiring is Inferred.
-- Desktop `RemoteBridge` full method surface — Observed to exist; enumerated in [Document 24](./24-per-package-deep-dives.md) as needed.
+- Desktop `RemoteBridge` full method surface (keychain, backups, directory picker, component sync, home server, media, search, destroy-all-data) — Observed to exist; enumerated in [Document 24](./24-per-package-deep-dives.md) as needed.
+- Whether mobile relies on any background-sync worker — Observed absence: sync runs only while the WebView JS is alive; RN has no background sync worker.
 
 ## Source index
 

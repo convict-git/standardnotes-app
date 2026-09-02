@@ -106,6 +106,9 @@ Because the web app imports both `@standardnotes/snjs` (prebuilt bundle containi
 | Deprecated Android editor URLs | `ComponentManager.registerDeprecatedEditorUrlsForAndroid()` | back-compat for old mobile editors |
 | `TagsToFolders` migration applicator | `snjs/lib/Migrations/Applicators/TagsToFolders.ts` | one-time historical data migration |
 | `@Controllers`/`@Services` aliases | §4 | dead |
+| Unused `src/vendor/*.bundle.js` (legacy libsodium) | copied to `dist/` but **not referenced** by `index.html` or app imports | dead artifact from an older SNCrypto build; safe-to-remove candidate |
+| `SyncBackoffService.backoffItem()` | never called from production (only tests) | per-item sync backoff is scaffolding, effectively **inactive** ([Document 06 §9](./06-synchronization-architecture.md)) |
+| `SyncOpStatus.startTimingMonitor()` | never invoked | dead latency hook; `SyncTakingTooLong` can never fire |
 
 ---
 

@@ -156,8 +156,8 @@ There is no React Router. Routing is a thin `RouteParser`/`RouteService` (`@stan
 
 ## 8. Code splitting, Suspense, error boundaries, portals
 
-- **Code splitting / lazy:** `React.lazy(() => import(...))` is used for heavy/optional views, e.g. `LazyLoadedClipperView` (`ApplicationView.tsx:44`, Observed). Dynamic `import()` also loads the Super editor tooling and other optional chunks (webpack splits them — [Document 14](./14-build-system-and-delivery.md)).
-- **Suspense:** used with the lazy views (React requires a Suspense boundary around `lazy`); there is no data-fetching Suspense — data comes from MobX, not Suspense resources. (Observed at the lazy sites.)
+- **Code splitting / lazy:** `React.lazy(() => import(...))` is used for `LazyLoadedClipperView` (`ApplicationView.tsx:44`, Observed). Plain dynamic `import()` (no `React.lazy`) loads the Super editor’s PDF export tooling and `@zip.js/zip.js` on demand (webpack splits them into async chunks — [Document 14](./14-build-system-and-delivery.md)).
+- **Suspense:** *no explicit `Suspense` wrapper exists in the web source* (Observed — an exhaustive search of `packages/web/src/javascripts` finds no `Suspense`). Since `React.lazy` normally requires a Suspense boundary, the lazy `ClipperView` relies on React 18’s behavior / a surrounding error boundary; this is a **potential latent issue** worth verifying rather than a deliberate pattern. There is no data-fetching Suspense — data comes from MobX, not Suspense resources.
 - **Error boundaries:** `ErrorBoundary` wraps risky subtrees such as the Super editor (`SuperEditor.tsx:274`, Observed) so a Lexical crash degrades to a boundary instead of blanking the app.
 - **Portals:** modals, context menus, toasts, and the file preview render as overlays appended near the app root (`ApplicationView.tsx:250-276`), typical portal-style overlays layered above the pane system.
 

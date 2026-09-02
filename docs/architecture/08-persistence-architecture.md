@@ -215,7 +215,7 @@ flowchart TB
 | ------- | --- | ------- | ------ |
 | Raw KV | `localStorage` | `localStorage` (+ optional file backups) | native KV |
 | Payload DB | IndexedDB `items` | IndexedDB (renderer) | native DB |
-| Keychain | `localStorage` (no OS keystore) | OS keychain (`safeStorage`/keytar) | OS keychain / biometrics |
+| Keychain | `localStorage` (no OS keystore) | OS keychain (`keytar`), localStorage fallback | OS keychain / biometrics |
 | Encrypted text backups | — | file-based backups (`FilesBackupService`) | — |
 
 Detail and the desktop/mobile device implementations are in [Document 13](./13-multi-platform-architecture.md).

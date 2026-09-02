@@ -22,7 +22,8 @@ An exhaustive search of the repository (`rg 'new Worker|new SharedWorker|\.worke
 
 | Mechanism | Count | What | Evidence |
 | --------- | ----- | ---- | -------- |
-| **Web Worker** | **1** | PDF export (Super editor) via Comlink | `SuperEditor/.../PDFExport/PDFWorker.worker.tsx` |
+| **First-party Web Worker** | **1** | PDF export (Super editor) via Comlink | `SuperEditor/.../PDFExport/PDFWorker.worker.tsx` |
+| **Dependency-spawned Web Workers** | **≥1 (transitive)** | `@zip.js/zip.js` spawns its own deflate/inflate workers (default `useWebWorkers: true`, not disabled) for backup/import zip archives | `FilesController.ts:827` (`await import('@zip.js/zip.js')`) |
 | **Shared Worker** | **0** | — | no matches |
 | **Service Worker** | **0** | — | no matches (see [Document 12](./12-pwa-and-service-worker.md)) |
 | **WASM module** | **1 primary** | libsodium (crypto); plus yoga-layout in the PDF worker | `sncrypto-web/src/libsodium.ts`; `web.webpack.config.js:110` |
@@ -48,7 +49,7 @@ flowchart LR
     classDef worker fill:#e5e7eb,stroke:#374151,color:#0b1324;
 ```
 
-**The headline:** the app is essentially **single-threaded**. All domain logic, all storage, and — importantly — **all cryptography** run on the main thread. The only off-main-thread work is PDF export. (Observed.)
+**The headline:** the app is essentially **single-threaded** for its own logic. All domain logic, all storage, and — importantly — **all cryptography** run on the main thread. The only *first-party* off-main-thread work is PDF export. (A dependency, `@zip.js/zip.js`, transparently spawns its own workers for zip archive deflate/inflate during backup export/import — off-main-thread but not app-authored.) (Observed.)
 
 ---
 

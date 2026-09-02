@@ -54,13 +54,14 @@ flowchart LR
 
 ## 2. Editor resolution
 
-`NoteView` tracks the note’s `editorIdentifier` and asks the `ComponentManager` to resolve it (`packages/web/src/javascripts/Components/NoteView/NoteView.tsx:134, 530`, Observed):
+`NoteView` asks the `ComponentManager` to resolve the editor, which delegates to `EditorForNoteUseCase` (`packages/snjs/lib/Services/ComponentManager/UseCase/EditorForNote.ts`, Observed). The resolution order is: **`note.noteType` (Plain / Super) first**, then `note.editorIdentifier` (a native feature or an installed Component item), then legacy per-note component association, then a Plain fallback:
 
 ```ts
-// NoteView.tsx (cropped)
-editorFeatureIdentifier: this.controller.item.editorIdentifier
-const newUIFeature = this.application.componentManager.editorForNote(this.note)
-// native feature → render <PlainEditor/> or <SuperEditor/>; else create a ComponentViewer + <IframeFeatureView/>
+// EditorForNote.ts (cropped)
+if (note.noteType === NoteType.Plain) return new UIFeature(GetPlainNoteFeature())
+if (note.noteType === NoteType.Super) return new UIFeature(GetSuperNoteFeature())
+if (note.editorIdentifier) { const r = componentOrNativeFeatureForIdentifier(note.editorIdentifier); if (r) return r }
+return new UIFeature(GetPlainNoteFeature())
 ```
 
 - If `editorForNote` returns a **native feature** (`NativeFeatureIdentifier` for Plain or Super), `NoteView` renders the corresponding in-process React component.

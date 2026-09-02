@@ -147,7 +147,7 @@ Recursive deep-dives into the most important packages, using a consistent templa
 
 | Package | Owns | Key files |
 | ------- | ---- | --------- |
-| `desktop` | Electron main + renderer, `DesktopDevice`, IPC `RemoteBridge`, Keychain (safeStorage), UpdateManager, ExtensionsServer, Spellchecker, Menus, PackageManager | `app/index.ts`, `app/javascripts/Main/*` ([Document 13 §4](./13-multi-platform-architecture.md)) |
+| `desktop` | Electron main + renderer, `DesktopDevice`, IPC `RemoteBridge`, Keychain (keytar), UpdateManager, ExtensionsServer, Spellchecker, Menus, PackageManager | `app/index.ts`, `app/javascripts/Main/*` ([Document 13 §4](./13-multi-platform-architecture.md)) |
 | `mobile` | RN WebView host, `MobileDevice` bridge, native services (state/back/color-scheme), notifications, share | `src/MobileWebAppContainer.tsx`, `src/Lib/MobileDevice.ts` ([Document 13 §5](./13-multi-platform-architecture.md)) |
 | `clipper` | browser-extension build reusing snjs | `web` with `BUILD_TARGET=clipper` ([Document 14 §6](./14-build-system-and-delivery.md)) |
 

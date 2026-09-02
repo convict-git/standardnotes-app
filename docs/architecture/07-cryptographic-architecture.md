@@ -217,7 +217,17 @@ sequenceDiagram
 
 ## 7. Root key lifecycle, memory residency, and storage encryption
 
-- **In memory:** the decrypted root key is held by `RootKeyManager` (`packages/services/src/Domain/RootKeyManager/RootKeyManager.ts`, wired at `Dependencies.ts:1520`). It is the transient secret that all storage/items-key encryption depends on. On `deinit()` (lock/sign-out) it is dropped, and `crypto.deinit()` is called (`Application.ts:750`). (Observed; the exact in-memory field is confirmed by the crypto explorer — see Verification Notes.)
+- **In memory:** the decrypted root key is held by `RootKeyManager` in a `private rootKey?` field (`packages/services/src/Domain/RootKeyManager/RootKeyManager.ts`, wired at `Dependencies.ts:1520`). It is the transient secret that all storage/items-key encryption depends on. On `deinit()` (lock/sign-out) it is dropped, and `crypto.deinit()` is called (`Application.ts:750`). (Observed.)
+- **The four `KeyMode`s** precisely define where the root key lives (`packages/services/src/Domain/RootKeyManager/KeyMode.ts`, Observed):
+
+  | `KeyMode` | Situation | Root key at rest |
+  | --------- | --------- | ---------------- |
+  | `RootKeyNone` (0) | no account, no passcode | none |
+  | `RootKeyOnly` (1) | account, no passcode | plain in the device **keychain** |
+  | `RootKeyPlusWrapper` (2) | account + passcode | encrypted `WrappedRootKey` in storage; passcode derives the wrapping key |
+  | `WrapperOnly` (3) | passcode only (no account) | the passcode-derived key *is* the root key |
+
+- **Type-A (root-key-encrypted) content types** — the only items encrypted under the root key rather than an items key: `RootKey`, `ItemsKey`, `EncryptedStorage`, `TrustedContact`, `KeySystemRootKey` (`ContentTypesUsingRootKeyEncryption()`, Observed). Everything else is Type-B (items-key-encrypted). This split is what `SplitPayloadsByEncryptionType` routes on.
 - **Passcode wrapping:** if the user sets a local passcode, the root key is *wrapped* by a **wrapping key** computed from the passcode (`encryption.computeWrappingKey(value)` then `encryption.unwrapRootKey(wrappingKey)` at launch — `Application.ts:499-508`, Observed). The wrapped root key is what persists; unlock re-derives the wrapping key to unwrap it.
 - **Storage-at-rest:** the entire KV storage blob’s Unwrapped domain is encrypted under the root key (`DiskStorageService.generatePersistableValues → encryptSplitSingle(usesRootKeyWithKeyLookup)`, `DiskStorageService.ts:267-281`, Observed). With no account/passcode, storage is written decrypted.
 - **Ephemeral sessions:** with an ephemeral persistence policy, nothing (keychain, DB, raw storage) is written and everything lives only in memory (`DiskStorageService.setPersistencePolicy(Ephemeral)`, `DiskStorageService.ts:103-111`, Observed).

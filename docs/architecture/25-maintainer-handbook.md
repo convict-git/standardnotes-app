@@ -252,8 +252,15 @@ Assumptions checked during this analysis and their resolution:
 | Mobile is native RN UI | read `MobileWebAppContainer` | **Corrected** — RN WebView hosting the web app |
 | Argon2/AEAD costs | ran a `libsodium` micro-benchmark | **Measured** (0.67 s / ~87 MB/s) |
 | Conflict = last-write-wins | read `ConflictDelta`/`GenericItem` | **Corrected** — duplication, 20s rule |
+| Desktop keychain via `safeStorage` | read `Keychain.ts`; searched `safeStorage` | **Corrected** — it uses **`keytar`** (no `safeStorage`); localStorage fallback on Linux/Snap |
+| `SyncBackoffService` provides live backoff | searched `backoffItem` callers | **Corrected** — `backoffItem()` never called in production; backoff is inactive scaffolding |
+| Web uses `Suspense` for lazy views | searched `Suspense` in `web/src` | **Corrected** — no `Suspense` wrapper exists; a potential latent issue for `React.lazy` |
+| Only one Web Worker total | searched `new Worker`, checked `@zip.js/zip.js` | **Refined** — one *first-party* worker (PDF); `@zip.js/zip.js` also spawns its own workers |
+| Mobile device RPC wiring was Inferred | read `MobileWebAppContainer.tsx` | **Upgraded to Observed** — `WebProcessDeviceInterface` postMessage RPC proxy |
 
-**Items still Inferred (not runtime-verified):** bundle domain duplication ([14 §5](./14-build-system-and-delivery.md)); circular-dependency plugin ineffectiveness ([23 §4](./23-legacy-architecture-and-technical-debt.md)); `SyncBackoffService`/`IntegrityService` internal formulas ([06 §9](./06-synchronization-architecture.md)); browser/phone absolute perf numbers ([16](./16-performance-engineering.md)); note-list virtualization ([10](./10-react-architecture.md)).
+*These corrections were cross-checked against six independent subsystem explorations, which otherwise corroborated the suite.*
+
+**Items still Inferred (not runtime-verified):** bundle domain duplication ([14 §5](./14-build-system-and-delivery.md)); circular-dependency plugin ineffectiveness ([23 §4](./23-legacy-architecture-and-technical-debt.md)); `IntegrityService` internal hash formula ([06 §8](./06-synchronization-architecture.md)); browser/phone absolute perf numbers ([16](./16-performance-engineering.md)); note-list virtualization ([10](./10-react-architecture.md)).
 
 ---
 
